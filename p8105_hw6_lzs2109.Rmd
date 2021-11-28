@@ -32,32 +32,32 @@ my_model =
   lm(bwt ~ delwt + ppwt + ppbmi, data = bweight_df)
 
 bweight_df %>% 
-  modelr::add_residuals(my_model) %>% 
-  modelr::add_predictions(my_model) %>%
+  add_residuals(my_model) %>% 
+  add_predictions(my_model) %>%
   ggplot(aes(x = pred, y= resid)) + 
     geom_point() + 
     labs(x = "Fitted Values", y = "Residuals")
 ```
 
 ```{r}
-model_1 = lm(bwt ~ blength + gaweeks, data = bweight_df) %>% 
+lm(bwt ~ blength + gaweeks, data = bweight_df) %>% 
   broom::tidy()
 
-model_2 = 
-  lm(bwt ~ bhead + 
-           blength + 
-           babysex + 
-           bhead * blength + 
-           blength * babysex + 
-           bhead * babysex + 
-           bhead * blength * babysex, 
-           data = bweight_df) %>% 
-  broom::tidy()
+
+lm(bwt ~ bhead + 
+         blength + 
+         babysex + 
+         bhead * blength + 
+         blength * babysex + 
+         bhead * babysex + 
+         bhead * blength * babysex, 
+         data = bweight_df) %>% 
+broom::tidy()
 ```
 
 ```{r}
 cv_df = 
-  modelr::crossv_mc(bweight_df, 10) %>% 
+  crossv_mc(bweight_df, 100) %>% 
   mutate(
     train = map(train, as_tibble),
     test = map(test, as_tibble))
@@ -89,5 +89,64 @@ cv_df %>%
     names_prefix = "rmse_") %>% 
   mutate(model = fct_inorder(model)) %>% 
   ggplot(aes(x = model, y = rmse)) + geom_violin()
+
+cv_df %>% head()
 ```
+
+
+### Problem 2
+
+```{r}
+weather_df = 
+  rnoaa::meteo_pull_monitors(
+    c("USW00094728"),
+    var = c("PRCP", "TMIN", "TMAX"), 
+    date_min = "2017-01-01",
+    date_max = "2017-12-31") %>%
+  mutate(
+    name = recode(id, USW00094728 = "CentralPark_NY"),
+    tmin = tmin / 10,
+    tmax = tmax / 10) %>%
+  select(name, id, everything())
+```
+
+```{r}
+weather_bootstraps = 
+  weather_df %>% 
+  bootstrap(n = 5000) %>% 
+  mutate(
+    models = map(strap, ~lm(tmax ~ tmin, data = .x)),
+    results_brglance = map(models, broom::glance),
+    results_brtidy = map(models, broom::tidy)) %>% 
+  select(.id, results_brglance, results_brtidy)
+
+weather_bootstraps %>% 
+  unnest(results_brglance) %>% 
+  ggplot(aes(x = r.squared)) +
+  geom_histogram()
+
+weather_bootstraps %>% 
+  unnest(results_brtidy) %>% 
+  select(.id, term, estimate) %>% 
+  pivot_wider(names_from = term, values_from = estimate) %>% 
+  janitor::clean_names() %>% 
+  mutate(log = log10(intercept * tmin)) %>% 
+  ggplot(aes(x = log)) +
+  geom_histogram()
+
+weather_bootstraps %>% 
+  unnest(results_brglance) %>% 
+  summarize(ci_lower = quantile(r.squared, 0.025), 
+            ci_upper = quantile(r.squared, 0.975))
+
+weather_bootstraps %>% 
+  unnest(results_brtidy) %>% 
+  select(.id, term, estimate) %>% 
+  pivot_wider(names_from = term, values_from = estimate) %>% 
+  janitor::clean_names() %>% 
+  mutate(log = log10(intercept * tmin)) %>% 
+  summarize(ci_lower = quantile(log, 0.025), 
+            ci_upper = quantile(log, 0.975))
+```
+
 
