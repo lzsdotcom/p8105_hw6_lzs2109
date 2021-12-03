@@ -36,11 +36,12 @@ map(bweight_df, ~sum(is.na(.))) %>%
   as.data.frame() 
 ```
 
-There appear to be no missing values in the birthweight data set.
+There appear to be no missing values in the birth weight data set. $\\$
+A possible regression model for birth weight may involve genetic factors attributable to the parents as indirect predictors of weight instead of direct predictors like the baby's features (sex, length, head circumference, etc). As such, I'll propose a model that uses the predictors delwt (mother's weight at delivery), malform (presence of malformations that could affect weight), ppwt (mother's pre-pregnancy weight), and ppbmi (mother's pre-pregnancy BMI). Mother's height might be useful to include, but we'll stick with 4 predictors and try to maintain some parsimony. If father's weight was available, that would probably be more interesting than, for example, mother's BMI to explore.
 
 ```{r}
 my_model = 
-  lm(bwt ~ delwt + ppwt + ppbmi + malform, data = bweight_df)
+  lm(bwt ~ delwt + malform + ppwt + ppbmi, data = bweight_df)
 
 bweight_df %>% 
   add_residuals(my_model) %>% 
@@ -49,6 +50,8 @@ bweight_df %>%
     geom_point() + 
     labs(x = "Fitted Values", y = "Residuals")
 ```
+
+The fitted values versus residuals plot is already showing some questionable trends in my proposed model, with the residuals not being evenly distributed around 0. We can see that on the positive side the residuals top out around just above 1500, but approach 2500 on the negative end.
 
 ```{r}
 lm(bwt ~ blength + gaweeks, data = bweight_df) %>% 
@@ -66,6 +69,8 @@ lm(bwt ~ bhead +
 broom::tidy()
 ```
 
+The above models are the ones that we will be comparing my proposed model to.
+
 ```{r}
 cv_df = 
   crossv_mc(bweight_df, 100) %>% 
@@ -76,7 +81,7 @@ cv_df =
 cv_df = 
   cv_df %>% 
   mutate(
-    my_model  = map(train, ~lm(bwt ~ delwt + ppwt + ppbmi + malform, data = .x)),
+    my_model  = map(train, ~lm(bwt ~ delwt + malform + ppwt + ppbmi, data = .x)),
     model_1   = map(train, ~lm(bwt ~ blength + gaweeks, data = .x)),
     model_2   = map(train, ~lm(bwt ~ bhead + 
                                      blength + 
@@ -104,6 +109,8 @@ cv_df %>%
 
 cv_df %>% head()
 ```
+
+Clearly, from the plot of root mean squared errors from my proposed model compared to the two proposed in the homework, my proposed model isn't great. The RMSE is largely between 450 and 500, while this error is reduced to between 300 and 375 for the first model, and between 275 and 325 for the second model with the interaction terms. This does make sense being that the model I proposed used indirect measures that may or may not be related to and predictors of the baby's weight, whereas the first model used the baby's actual length and gestational age, which are more direct predictors of how much a baby weights. Obviously, the longer a baby is, the more they will weigh. The second model also used direct features of a baby such as their head circumference, weight, and sex, in addition to the interactions between these variables. We can assume that the larger a baby's head is, the longer they are, and that the baby's sex would be more direct predictors of the baby's weight.
 
 
 ### Problem 2
