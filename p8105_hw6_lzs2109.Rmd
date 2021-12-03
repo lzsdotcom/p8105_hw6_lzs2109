@@ -1,7 +1,7 @@
 ---
 title: "Data Science I Homework 6 - lzs2109"
 author: "Louis Sharp"
-date: "11/11/2021"
+date: "11/28/2021"
 output: github_document
 ---
 
@@ -20,16 +20,27 @@ bweight_df =
   bweight_df %>% 
   mutate(
     babysex = as.factor(babysex),
+    babysex = fct_recode(babysex, "male" = "1","female" = "2"),
     frace = as.factor(frace),
+    frace = fct_recode(frace, "white" = "1", "black" = "2", "asian" = "3", 
+                       "puerto rican" = "4", "other" = "8"),
     malform = as.factor(malform),
-    mrace = as.factor(mrace))
+    malform = fct_recode(malform, "present" = "1", "absent" = "0"),
+    mrace = as.factor(mrace),
+    mrace = fct_recode(mrace, "white" = "1", "black" = "2", "asian" = "3", 
+                       "puerto rican" = "4"))
 ```
 
 ```{r}
-#map(bweight_df, ~sum(is.na(.))) there appear to be no missing values
+map(bweight_df, ~sum(is.na(.))) %>% 
+  as.data.frame() 
+```
 
+There appear to be no missing values in the birthweight data set.
+
+```{r}
 my_model = 
-  lm(bwt ~ delwt + ppwt + ppbmi, data = bweight_df)
+  lm(bwt ~ delwt + ppwt + ppbmi + malform, data = bweight_df)
 
 bweight_df %>% 
   add_residuals(my_model) %>% 
@@ -65,7 +76,7 @@ cv_df =
 cv_df = 
   cv_df %>% 
   mutate(
-    my_model  = map(train, ~lm(bwt ~ delwt + ppwt + ppbmi, data = .x)),
+    my_model  = map(train, ~lm(bwt ~ delwt + ppwt + ppbmi + malform, data = .x)),
     model_1   = map(train, ~lm(bwt ~ blength + gaweeks, data = .x)),
     model_2   = map(train, ~lm(bwt ~ bhead + 
                                      blength + 
@@ -88,7 +99,8 @@ cv_df %>%
     values_to = "rmse",
     names_prefix = "rmse_") %>% 
   mutate(model = fct_inorder(model)) %>% 
-  ggplot(aes(x = model, y = rmse)) + geom_violin()
+  ggplot(aes(x = model, y = rmse)) + 
+  geom_violin()
 
 cv_df %>% head()
 ```
