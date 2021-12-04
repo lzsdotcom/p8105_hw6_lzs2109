@@ -13,7 +13,7 @@ library(modelr)
 
 ### Problem 1
 
-```{r}
+```{r, data import and tidy}
 bweight_df = read_csv("./data/birthweight.csv")
 
 bweight_df = 
@@ -31,29 +31,28 @@ bweight_df =
                        "puerto rican" = "4"))
 ```
 
-```{r}
+```{r, na values}
 map(bweight_df, ~sum(is.na(.))) %>% 
-  as.data.frame() 
+  as.data.frame()
 ```
 
-There appear to be no missing values in the birth weight data set. $\\$
-A possible regression model for birth weight may involve genetic factors attributable to the parents as indirect predictors of weight instead of direct predictors like the baby's features (sex, length, head circumference, etc). As such, I'll propose a model that uses the predictors delwt (mother's weight at delivery), malform (presence of malformations that could affect weight), ppwt (mother's pre-pregnancy weight), and ppbmi (mother's pre-pregnancy BMI). Mother's height might be useful to include, but we'll stick with 4 predictors and try to maintain some parsimony. If father's weight was available, that would probably be more interesting than, for example, mother's BMI to explore.
+There appear to be no missing values in the birth weight data set. A possible regression model for birth weight may involve genetic factors attributable to the parents as indirect predictors of weight instead of direct predictors like the baby's features (sex, length, head circumference, etc). As such, we'll propose a model that uses the variables delwt (mother's weight at delivery), mheight (the mother's height), ppwt (mother's pre-pregnancy weight), and ppbmi (mother's pre-pregnancy BMI). If father's weight, height, or BMI were available, they would probably be interesting variables to include as well. This proposed model is based solely on hypothesized underlying factors, and we'll use some data-driven info later to see how it could possibly be improved.
 
-```{r}
-my_model = 
-  lm(bwt ~ delwt + malform + ppwt + ppbmi, data = bweight_df)
+```{r, proposed model}
+proposed_model = 
+  lm(bwt ~ delwt + mheight + ppbmi + ppwt, data = bweight_df)
 
 bweight_df %>% 
-  add_residuals(my_model) %>% 
-  add_predictions(my_model) %>%
-  ggplot(aes(x = pred, y= resid)) + 
+  add_residuals(proposed_model) %>% 
+  add_predictions(proposed_model) %>%
+  ggplot(aes(x = pred, y = resid)) + 
     geom_point() + 
     labs(x = "Fitted Values", y = "Residuals")
 ```
 
-The fitted values versus residuals plot is already showing some questionable trends in my proposed model, with the residuals not being evenly distributed around 0. We can see that on the positive side the residuals top out around just above 1500, but approach 2500 on the negative end.
+The fitted values versus residuals plot is already showing some problematic trends in our proposed model, with the residuals not being completely evenly distributed around 0. We can see that on the positive side the residuals top out around just above +1500, but approach -2500 on the negative end. Although they are roughly evenly distributed, there are a noticeable amount of points below -1500 for the residuals, with no such points above +1500, save for one.
 
-```{r}
+```{r, given models}
 lm(bwt ~ blength + gaweeks, data = bweight_df) %>% 
   broom::tidy()
 
@@ -69,9 +68,9 @@ lm(bwt ~ bhead +
 broom::tidy()
 ```
 
-The above models are the ones that we will be comparing my proposed model to.
+The above given models are the ones that we will be comparing our proposed model to.
 
-```{r}
+```{r, cross validation}
 cv_df = 
   crossv_mc(bweight_df, 100) %>% 
   mutate(
@@ -81,20 +80,20 @@ cv_df =
 cv_df = 
   cv_df %>% 
   mutate(
-    my_model  = map(train, ~lm(bwt ~ delwt + malform + ppwt + ppbmi, data = .x)),
-    model_1   = map(train, ~lm(bwt ~ blength + gaweeks, data = .x)),
-    model_2   = map(train, ~lm(bwt ~ bhead + 
-                                     blength + 
-                                     babysex + 
-                                     bhead * blength + 
-                                     blength * babysex + 
-                                     bhead * babysex + 
-                                     bhead * blength * babysex,
-                               data = .x))) %>% 
+    proposed_model  = map(train, ~lm(bwt ~ delwt + mheight + ppbmi + ppwt, data = .x)),
+    model_1         = map(train, ~lm(bwt ~ blength + gaweeks, data = .x)),
+    model_2         = map(train, ~lm(bwt ~ bhead + 
+                                       blength + 
+                                       babysex + 
+                                       bhead * blength + 
+                                       blength * babysex + 
+                                       bhead * babysex + 
+                                       bhead * blength * babysex,
+                                     data = .x))) %>% 
   mutate(
-    rmse_my_model = map2_dbl(my_model, test, ~rmse(model = .x, data = .y)),
-    rmse_model_1  = map2_dbl(model_1, test, ~rmse(model = .x, data = .y)),
-    rmse_model_2  = map2_dbl(model_2, test, ~rmse(model = .x, data = .y)))
+    rmse_proposed_model = map2_dbl(proposed_model, test, ~rmse(model = .x, data = .y)),
+    rmse_model_1        = map2_dbl(model_1, test, ~rmse(model = .x, data = .y)),
+    rmse_model_2        = map2_dbl(model_2, test, ~rmse(model = .x, data = .y)))
 
 cv_df %>% 
   select(starts_with("rmse")) %>% 
@@ -110,12 +109,16 @@ cv_df %>%
 cv_df %>% head()
 ```
 
-Clearly, from the plot of root mean squared errors from my proposed model compared to the two proposed in the homework, my proposed model isn't great. The RMSE is largely between 450 and 500, while this error is reduced to between 300 and 375 for the first model, and between 275 and 325 for the second model with the interaction terms. This does make sense being that the model I proposed used indirect measures that may or may not be related to and predictors of the baby's weight, whereas the first model used the baby's actual length and gestational age, which are more direct predictors of how much a baby weights. Obviously, the longer a baby is, the more they will weigh. The second model also used direct features of a baby such as their head circumference, weight, and sex, in addition to the interactions between these variables. We can assume that the larger a baby's head is, the longer they are, and that the baby's sex would be more direct predictors of the baby's weight.
+Clearly, from the plot of root mean squared errors from our proposed model compared to the two given in the homework assignment, our proposed model isn't great. The RMSE is largely between 450 and 500, up to 525, while this same error measure is reduced to between 300 and 375 for the first model, and between 275 and 325 for the second model with the interaction terms. This does make sense being that the model we proposed used indirect measures that may or may not be related to actual predictors of the baby's weight, whereas the first model used the baby's actual length and gestational age, which are more direct predictors of how much a baby weights. Obviously, the longer a baby is, the more they will weigh. The second model also used direct features of the baby such as their head circumference, weight, and sex, in addition to the interactions between these variables. We can reasonably assume that the larger a baby's head is, the longer their body is, and the baby's sex would be more direct predictors of the baby's weight. Our proposed model's higher error makes sense in retrospect, because if we fit a model that includes all variables (below), we can see that of the ones we chose in our hypothesized and non-data-driven model, only delwt has a p-value below significance level of 0.05. Had we chosen another mother-associated non-genetic factor such as smoken (number of cigarettes smoked during pregnancy), we would have likely achieved a better model.
+
+```{r, all vars model}
+lm(bwt ~ ., data = bweight_df) %>% summary()
+```
 
 
 ### Problem 2
 
-```{r}
+```{r, data import 2}
 weather_df = 
   rnoaa::meteo_pull_monitors(
     c("USW00094728"),
@@ -129,7 +132,9 @@ weather_df =
   select(name, id, everything())
 ```
 
-```{r}
+Loaded the data in above, and below we will do 5000 bootstrap samples and estimates for $\hat{r}^2$ and log($\hat{\beta}_0 * \hat{\beta}_1$). Then, we'll plot the distribution of the estimates and describe them.
+
+```{r, bootstraps and plots}
 weather_bootstraps = 
   weather_df %>% 
   bootstrap(n = 5000) %>% 
@@ -143,7 +148,11 @@ weather_bootstraps %>%
   unnest(results_brglance) %>% 
   ggplot(aes(x = r.squared)) +
   geom_histogram()
+```
 
+The distribution of our 5000 bootstrap estimates for $\hat{r}^2$ appears to follow a fairly normal distribution, with a bit of a tail on the lower end of the $\hat{r}^2$ values. The distribution appears to be centered around an $\hat{r}^2$ value of 0.915.
+
+```{r, plots 2}
 weather_bootstraps %>% 
   unnest(results_brtidy) %>% 
   select(.id, term, estimate) %>% 
@@ -152,13 +161,20 @@ weather_bootstraps %>%
   mutate(log = log10(intercept * tmin)) %>% 
   ggplot(aes(x = log)) +
   geom_histogram()
+```
 
-weather_bootstraps %>% 
+The distribution of our 5000 bootstrap estimates for log($\hat{\beta}_0 * \hat{\beta}_1$) also appears to follow a fairly normal distribution, similar to the $\hat{r}^2$ values. The log($\hat{\beta}_0 * \hat{\beta}_1$) distribution looks to be centered around a value of 0.875.
+
+```{r, confidence intervals}
+rsquared_ci = 
+  weather_bootstraps %>% 
   unnest(results_brglance) %>% 
   summarize(ci_lower = quantile(r.squared, 0.025), 
             ci_upper = quantile(r.squared, 0.975))
+rsquared_ci
 
-weather_bootstraps %>% 
+logbeta_ci = 
+  weather_bootstraps %>% 
   unnest(results_brtidy) %>% 
   select(.id, term, estimate) %>% 
   pivot_wider(names_from = term, values_from = estimate) %>% 
@@ -166,6 +182,7 @@ weather_bootstraps %>%
   mutate(log = log10(intercept * tmin)) %>% 
   summarize(ci_lower = quantile(log, 0.025), 
             ci_upper = quantile(log, 0.975))
+logbeta_ci
 ```
 
-
+Above, we produced 95% confidence intervals for our bootstrapped estimates of $\hat{r}^2$ and log($\hat{\beta}_0 * \hat{\beta}_1$). The 95% confidence interval for $\hat{r}^2$ is `r round(rsquared_ci, 3)` and for log($\hat{\beta}_0 * \hat{\beta}_1$), the 95% confidence interval is `r round(logbeta_ci, 3)`. We can say with 95% confidence that the true population parameter lies between these upper and lower bounds for both of these measures.
